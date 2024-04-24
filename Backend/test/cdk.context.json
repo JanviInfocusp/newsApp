@@ -1,0 +1,10 @@
+{
+  "auth": {
+    "google": {
+      "clientSecretName": "",
+      "clientId": "",
+      "callbackUrls": [""],
+      "logoutUrls": [""]
+    }
+  }
+}
