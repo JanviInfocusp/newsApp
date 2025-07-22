@@ -9,6 +9,7 @@ const News = (props) => {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalResults, setTotalResults] = useState(0);
+  const [error, setError] = useState(null); // New error state
 
   const capitalizeFirstLetter = (string) => {
     return string.charAt(0).toUpperCase() + string.slice(1);
@@ -18,14 +19,24 @@ const News = (props) => {
     props.setProgress(10);
     const url = `https://newsapi.org/v2/top-headlines?country=${props.country}&category=${props.category}&apiKey=d97f0acf3d97478f9188f5221f2b5004&page=${page}&pageSize=${props.pageSize}`;
     setLoading(true);
-    let data = await fetch(url);
-    if (data.status === 200) {
-      let parsedData = await data.json();
+    setError(null); // Clear error before new attempt
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const parsedData = await response.json();
       setArticles(parsedData.articles);
       setTotalResults(parsedData.totalResults);
+      setError(null); // Clear error on success
+    } catch (error) {
+      setError(`Failed to load news: ${error.message}. Please try again later.`);
+      setArticles([]);
+      setTotalResults(0);
+    } finally {
       setLoading(false);
+      props.setProgress(100);
     }
-    props.setProgress(100);
   };
 
   useEffect(() => {
@@ -45,14 +56,23 @@ const News = (props) => {
   //   };
 
   const fetchMoreData = async () => {
-    const url = `https://newsapi.org/v2/top-headlines?country=${props.country}&category=${props.category}&apiKey=d97f0acf3d97478f9188f5221f2b5004&page=${page}&pageSize=${props.pageSize}`;
-    setPage(page + 1);
-    let data = await fetch(url);
-    let parsedData = await data.json();
-    // console.log(parsedData);
+    const nextPage = page + 1;
+    const url = `https://newsapi.org/v2/top-headlines?country=${props.country}&category=${props.category}&apiKey=d97f0acf3d97478f9188f5221f2b5004&page=${nextPage}&pageSize=${props.pageSize}`;
 
-    setArticles(articles.concat(parsedData.articles));
-    setTotalResults(parsedData.totalResults);
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const parsedData = await response.json();
+      setArticles(articles.concat(parsedData.articles));
+      setTotalResults(parsedData.totalResults);
+      setPage(nextPage);
+      setError(null); // Clear error on successful fetchMoreData
+    } catch (error) {
+      setError(`Failed to load more news: ${error.message}. Please check your connection or try again later.`);
+      setTotalResults(articles.length); // Stop InfiniteScroll on error
+    }
   };
 
   return (
@@ -64,13 +84,14 @@ const News = (props) => {
         NewsApp - Top {capitalizeFirstLetter(props.category)} Headlines
       </h1>
       {loading && <Spinner />}
-      {articles.length === 0 && (
+      {error && <div className="alert alert-danger text-center" role="alert">{error}</div>}
+      {!loading && !error && articles.length === 0 && (
         <h3 className="text-center">No available news</h3>
       )}
       <InfiniteScroll
         dataLength={articles.length}
         loadMore={fetchMoreData}
-        hasMore={articles.length !== totalResults}
+        hasMore={!loading && !error && articles.length !== totalResults} // ensure hasMore is false if error or initial loading
         loader={<Spinner />}
       >
         <div className="container">
